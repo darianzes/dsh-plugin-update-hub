@@ -1,5 +1,16 @@
 # dsh-plugin-update-hub
 
+## English
+
+**An update hub for the plugins you already installed in DeepSeek Harness.**
+
+Plugins installed from the market never told you when a newer version shipped — the stock plugin page has no version column at all, so your only upgrade path was uninstall and reinstall. This plugin adds a **Plugin updates** tab next to *Installed* and *Discover*: every installed plugin with its current version, install date, how many releases behind it is, and a version picker.
+
+- Concurrent update check across all installed plugins, with a concurrency limit that adapts to machine size and registry latency (`等待检查…` while queued)
+- Fuzzy search, page sizes of 10 / 20 / 50, optional built-in bundles in the list
+- Batch upgrade: queue every outdated plugin at the version you picked, executed one at a time by the Host's own installer, with live progress (`checking / removing / installing / restoring`)
+- The queue lives in memory only — if DSH quits or crashes mid-run, the queue is simply gone on the next start
+
 给 DeepSeek Harness 的插件页补上**版本落后提示**与**按版本升级**。
 
 从插件市场装的插件落后了,原来的插件页不会提示,只能卸载重装。这个插件在侧边栏的**插件**页加一个「插件更新」tab:一次列出所有已装插件的当前版本、安装时间和可升级版本,并支持按版本批量排队升级。
