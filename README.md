@@ -1,58 +1,90 @@
 # dsh-plugin-update-hub
 
-## English
-
 **An update hub for the plugins you already installed in DeepSeek Harness.**
 
-Plugins installed from the market never told you when a newer version shipped — the stock plugin page has no version column at all, so your only upgrade path was uninstall and reinstall. This plugin adds a **Plugin updates** tab next to *Installed* and *Discover*: every installed plugin with its current version, install date, how many releases behind it is, and a version picker.
+[![npm](https://img.shields.io/npm/v/dsh-plugin-update-hub?style=flat-square&labelColor=2B3245&color=CB3837)](https://www.npmjs.com/package/dsh-plugin-update-hub)
+[![License](https://img.shields.io/badge/license-MIT-3366CC?style=flat-square&labelColor=2B3245)](LICENSE)
+[![DSH](https://img.shields.io/badge/DSH-%E2%89%A50.2.2%20%3C0.3.0-4B67B4?style=flat-square&labelColor=2B3245)](#compatibility)
 
-- Concurrent update check across all installed plugins, with a concurrency limit that adapts to machine size and registry latency (`等待检查…` while queued)
-- Fuzzy search, page sizes of 10 / 20 / 50, optional built-in bundles in the list
-- Batch upgrade: queue every outdated plugin at the version you picked, executed one at a time by the Host's own installer, with live progress (`checking / removing / installing / restoring`)
-- The queue lives in memory only — if DSH quits or crashes mid-run, the queue is simply gone on the next start
+[简体中文](README.zh.md) · [English](README.md)
 
-给 DeepSeek Harness 的插件页补上**版本落后提示**与**按版本升级**。
+Plugins installed from the market never told you when a newer version shipped — the stock plugin page has no version column at all, so the only upgrade path was uninstall and reinstall. This plugin adds a **Plugin updates** tab next to *Installed* and *Discover*: every installed plugin with its current version, install date, how many releases behind it is, and a version picker.
 
-从插件市场装的插件落后了,原来的插件页不会提示,只能卸载重装。这个插件在侧边栏的**插件**页加一个「插件更新」tab:一次列出所有已装插件的当前版本、安装时间和可升级版本,并支持按版本批量排队升级。
+## Install
 
-## 安装
+### CLI (recommended)
 
-- 插件市场 → **插件** → **发现** → 搜索 `插件更新` / `dsh-plugin-update-hub` → 安装。
-- 装好后在**插件**页的 tab 行(已安装 / 发现 右边)出现 **插件更新**。
+```sh
+# once per machine, if you don't have the CLI yet
+npm i -g @deepseek-ai/dsh
 
-## 界面
+# install the plugin into the profile you launch
+dsh plugin --profile web add dsh-plugin-update-hub
+```
 
-**插件更新 tab 在插件页的 tab 行里(已安装 / 发现 右边):**
+- Replace `web` with the profile you actually run (`tui`, `headless`, ...); `dsh plugin --profile <name> <args>` forwards the remaining arguments to pnpm inside that profile's directory.
+- Requires Node ≥ 22.13 and a `pnpm` on `PATH` (the CLI reports `dsh: pnpm was not found` when it is missing).
+- The Desktop app's `desktop` profile is owned by the application: the CLI refuses to manage it (`profile "desktop" is managed exclusively by the Electron application`). Desktop users install from **Plugins → Discover**, paste `dsh-plugin-update-hub` in **Add plugin**, or ask the agent to install it.
+- Verify it loaded:
 
-![插件页的 tab 行](docs/screenshot-tab.png)
+  ```sh
+  dsh --profile web --dump-config | grep -A2 'dsh-plugin-update-hub'
+  ```
 
-**版本列表:每行插件名、包名、简介、当前版本、安装时间、状态与可升级版本:**
+### From a checkout
 
-![插件版本更新列表](docs/screenshot-list.png)
+```sh
+git clone https://github.com/darianzes/dsh-plugin-update-hub
+dsh plugin --profile web add ./dsh-plugin-update-hub
+```
 
-- 每行显示:插件名、包名、简介、当前版本、安装时间、状态(已是最新 / 落后 N 个版本 / 内置 / Git 安装 / 已禁用)、最新版本
-- 落后时出现版本下拉(已发布但比当前新的版本,最新在前)+「更新」按钮
-- 插件名 / 包名 / 简介模糊搜索(多关键词与匹配)
-- 分页:每页 10 / 20 / 50,默认 20,选择记在 localStorage
-- 「显示内置」开关,默认关闭(内置 bundle 随 DSH 发行,不能单独升级)
-- 「检查更新」手动按钮:一次检查当前结果集里所有可检查的插件,几个并发跑,其余显示「等待检查…」;打开 DSH 时自动检查一次(6 小时内不重复)
-- 并发数按机器规模起算(2/3/4),并随 registry 响应时间自适应:慢了就减,快了再加回上限,避免一口气打满网络
-- 更新支持**批量**:「批量更新 (N)」把当前筛选结果里所有可升级插件按所选版本排进队列;单个「更新」也是入队
-- 队列串行执行(安装共用 profile 的 store,不能并行),顶部「更新队列」**默认折叠**,折叠时只显示一行汇总(如 `更新队列 · 1 个更新中 · 2 个排队中`)加当前进度百分比与细进度条,点这行展开看每个任务的 `等待更新… / 正在校验 / 移除 / 安装 / 已完成 / 失败` 与已用时间
-- 队列只存在内存里:DSH 意外关闭或中断后,排队任务直接消失,不会在下次启动时被恢复;也可手动「清空队列」/「清空已完成」
-- 进度按 Host 广播的 `plugin-manager/update-state` 步进(校验 / 移除 / 安装 / 回滚),失败会显示原因
+## Update
 
-## 实现
+```sh
+# let pnpm move it to the newest release in range
+dsh plugin --profile web update dsh-plugin-update-hub
 
-- `index.js`(Host 半边,`export const inject = ['webServer']`):注册 `/dsh-plugin-update-hub-api`,按包名返回 profile `node_modules` 的安装时间(mtime 取 pnpm symlink 自身)与 `package.json` 的简介/版本。profile 目录依次从 `DSH_PROFILE_DIR`、`DSH_HOME/profiles/$DSH_PROFILE`、宿主进程 argv、模块路径上溯、`~/.dsh/profiles/*` 里找(以 `node_modules` + `cordis.patch.yml` 判定,排除只读的 app.asar 安装目录)。
-- `client.js`(Client 半边):注册 `plugins.tab`(插件页 tab 行)的 `{id:'updates', order:10, label:'插件更新'}`;数据走 `ctx.get('remote.pluginManager')` 的 `listBundles` / `listVersions` / `updateBundle` / `cancelInstall`,事件走 `ctx.get('remote').$on('plugin-manager/update-state' | 'plugin-manager/changed')`。Remote 调用返回 `{ok, value|error}` 信封,统一由 `unwrap()` 转成值或抛出。
-- 只依赖 `react` 与 `--dsw-alias-*` 主题 token,不引入 Harness 客户端包,不写 JSX。
+# or pin the newest release explicitly
+dsh plugin --profile web add dsh-plugin-update-hub@latest
+```
 
-## 注意
+Every one of these is also handled by the tab itself once installed — see below.
 
-- 更新由 Host 的 plugin manager 执行:registry 包会先校验「存在该版本 + 声明了 bundle + 接受当前 DSH 版本」,失败自动回滚重装旧版;有的更新要重启 DSH 才生效,界面会提示。
-- Git 安装的插件不走版本升级(与 plugin manager 一致),行内会标注。
-- 只对能从 registry 查到新版本的包生效;内置 bundle(official)不参与。
+## Update from the tab
+
+![The Plugin updates tab sits in the Plugins page tab row](https://raw.githubusercontent.com/darianzes/dsh-plugin-update-hub/main/docs/screenshot-tab.png)
+
+![Version list: name, package, summary, current version, install date, status, versions](https://raw.githubusercontent.com/darianzes/dsh-plugin-update-hub/main/docs/screenshot-list.png)
+
+- Every row shows: display name, package name, description, current version, install time, status (`up to date` / `N versions behind` / `built-in` / `git install` / `disabled`) and the newest version.
+- Outdated rows get a version dropdown (releases newer than the installed one, newest first) and an **Update** button.
+- Fuzzy search over name / package / description, several keywords combined.
+- Page size 10 / 20 / 50, default 20, remembered in `localStorage`.
+- **Show built-in** toggle, off by default (official bundles ship with DSH and cannot be upgraded alone).
+- **Check updates** runs a concurrent check over every checkable row in the current result set — the rest show `等待检查…` (waiting) while queued; one automatic check runs when you open the tab, throttled to once every 6 hours.
+- Concurrency starts at 2 / 3 / 4 depending on cores and memory, then adapts to registry latency: slows down when responses are slow, grows back up to the ceiling when they are fast.
+- Batch upgrades: **批量更新 (N)** queues every upgradable row in the current filter at the chosen version; a single row's **Update** just enqueues one task.
+- The queue is serial (installs share the profile's store, they cannot run in parallel), collapsible and collapsed by default — collapsed it shows one summary line (`更新队列 · 1 个更新中 · 2 个排队中`) plus the live percentage and a thin progress bar; expanded it shows each task's `waiting / checking / removing / installing / done / failed` and elapsed time.
+- The queue lives in memory only: if DSH quits or is interrupted, queued tasks are simply gone on the next start. **Clear queue** / **Clear finished** are available too.
+- Progress follows the Host's own `plugin-manager/update-state` steps (check / remove / install / restore); failures show the reason.
+
+## How it works
+
+- `index.js` — Host half, `export const inject = ['webServer']`. Registers the exact route `/dsh-plugin-update-hub-api`, returning each requested package's install time (the mtime of the pnpm symlink in the profile's `node_modules`) plus the `description` / `version` from its `package.json`. The profile directory is resolved from `DSH_PROFILE_DIR`, `DSH_HOME/profiles/$DSH_PROFILE`, the host process argv, the module path, and finally `~/.dsh/profiles/*`, validated by `node_modules` + `cordis.patch.yml` so the read-only app install directory is never picked. No `@deepseek-ai` dependency.
+- `client.js` — Client half. Registers `plugins.tab` as `{ id: 'updates', order: 10, label: '插件更新' }`; data comes from `ctx.get('remote.pluginManager')` (`listBundles` / `listVersions` / `updateBundle` / `cancelInstall`), progress from `ctx.get('remote').$on('plugin-manager/update-state' | 'plugin-manager/changed')`. Remote calls resolve to an `{ ok, value | error }` envelope, unwrapped in one place.
+- Only `react` and `--dsw-alias-*` theme tokens are used — no Harness client packages, no JSX.
+
+## Compatibility
+
+- DSH `>=0.2.2-0 <0.3.0`, Node `>=22.13.0`.
+- Only bundles installed from an npm registry can be upgraded; git and link installs are labelled and left alone, official bundles follow the DSH release.
+- Upgrades are performed by the Host plugin manager: it checks that the target version exists, declares a bundle, and accepts the running DSH version, and rolls back to the previous version if anything fails. Some upgrades need a DSH restart; the tab says so.
+
+## Development
+
+```sh
+npm test    # smoke test: runs client.js in a fake browser with a mocked remote
+```
 
 ## License
 
