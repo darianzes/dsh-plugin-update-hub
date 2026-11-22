@@ -22,6 +22,14 @@ Plugins installed from the market never told you when a newer version shipped �
 
 ## 界面
 
+**插件更新 tab 在插件页的 tab 行里(已安装 / 发现 右边):**
+
+![插件页的 tab 行](docs/screenshot-tab.png)
+
+**版本列表:每行插件名、包名、简介、当前版本、安装时间、状态与可升级版本:**
+
+![插件版本更新列表](docs/screenshot-list.png)
+
 - 每行显示:插件名、包名、简介、当前版本、安装时间、状态(已是最新 / 落后 N 个版本 / 内置 / Git 安装 / 已禁用)、最新版本
 - 落后时出现版本下拉(已发布但比当前新的版本,最新在前)+「更新」按钮
 - 插件名 / 包名 / 简介模糊搜索(多关键词与匹配)
