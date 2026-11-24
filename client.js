@@ -315,6 +315,9 @@ window.__ModuleLoader__.load((() => {
       let appCtx = null
       let remote = null
       let booted = false
+      let subscribed = false
+      let retryTimer = null
+      let waited = 0
 
       function emit() {
         revision += 1
@@ -482,6 +485,44 @@ window.__ModuleLoader__.load((() => {
         return { state: 'done', versions, installed: answer.installed || installed, omitted: answer.omitted || 0 }
       }
 
+      /**
+       * The plugin manager's remote namespace mounts independently of this
+       * bundle, so on a fresh app start the list can be requested before it
+       * exists. Wait for it quietly instead of latching a permanent error.
+       */
+      function retryLater() {
+        if (retryTimer) return
+        retryTimer = setTimeout(() => {
+          retryTimer = null
+          if (booted) return
+          if (!manager()) {
+            waited += 1
+            if (waited > 40) {
+              store.phase = 'error'
+              store.error = '插件管理器尚未加载'
+              emit()
+              return
+            }
+            retryLater()
+            return
+          }
+          waited = 0
+          subscribe()
+          bootstrap()
+        }, 400)
+      }
+
+      /** Manual retry from the error notice: clear the latch and try again. */
+      function retryBoot() {
+        waited = 0
+        booted = false
+        store.error = ''
+        store.phase = 'loading'
+        emit()
+        if (manager()) { subscribe(); bootstrap(); return }
+        retryLater()
+      }
+
       async function bootstrap() {
         if (booted) return
         booted = true
@@ -490,12 +531,20 @@ window.__ModuleLoader__.load((() => {
         try {
           await loadBundles()
           store.phase = 'ready'
+          store.error = ''
           emit()
         } catch (error) {
+          booted = false
+          if (!manager()) {
+            store.phase = 'loading'
+            store.error = ''
+            emit()
+            retryLater()
+            return
+          }
           store.phase = 'error'
           store.error = messageOf(error)
           emit()
-          booted = false
           return
         }
         const last = Number((() => { try { return localStorage.getItem(CHECK_KEY) || '0' } catch (error) { return '0' } })())
@@ -662,8 +711,10 @@ window.__ModuleLoader__.load((() => {
       }
 
       function subscribe() {
+        if (subscribed) return
         const service = remoteService()
         if (!service || typeof service.$on !== 'function') return
+        subscribed = true
         const disposers = []
         const bind = (event, handler) => {
           try {
@@ -798,7 +849,9 @@ window.__ModuleLoader__.load((() => {
             }, store.checking ? progressText : '检查更新')))
 
         const notices = []
-        if (store.error) notices.push(h('div', { className: 'dpu-notice dpu-notice-error', key: 'error' }, h('div', { className: 'dpu-notice-text' }, '无法读取插件列表:' + store.error)))
+        if (store.error) notices.push(h('div', { className: 'dpu-notice dpu-notice-error', key: 'error' },
+          h('div', { className: 'dpu-notice-text' }, '无法读取插件列表:' + store.error),
+          h('button', { className: 'dpu-btn dpu-btn-ghost', onClick: () => retryBoot() }, '重试')))
         if (store.notice) notices.push(h('div', { className: 'dpu-notice', key: 'notice' },
           h('div', { className: 'dpu-notice-text' }, store.notice),
           h('button', { className: 'dpu-btn dpu-btn-ghost', onClick: () => { store.notice = ''; emit() } }, '知道了')))
@@ -935,15 +988,10 @@ window.__ModuleLoader__.load((() => {
           () => h(PluginUpdatesTab, {}),
         ))
 
-        let attempts = 0
         const start = () => {
-          attempts += 1
-          if (!remoteService()) {
-            if (attempts < 40) setTimeout(start, 400)
-            return
-          }
-          subscribe()
-          bootstrap()
+          if (manager()) { subscribe(); bootstrap(); return }
+          if (!remoteService()) { setTimeout(start, 300); return }
+          retryLater()
         }
         start()
       }

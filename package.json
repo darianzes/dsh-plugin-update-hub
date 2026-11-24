@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-update-hub",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "已安装插件版本中枢：一次并发检查所有插件的落后情况，展示安装时间与可升级版本，按版本批量排队升级并实时显示进度。",
   "icon": "icon.png",
   "license": "MIT",

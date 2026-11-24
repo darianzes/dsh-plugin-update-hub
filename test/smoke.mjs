@@ -288,6 +288,40 @@ console.log(flat.replace(/\s+/g, ' ').slice(-260))
 console.log('prefs:', localStorage.getItem('dsh-plugin-update-hub:prefs'))
 must('page size is remembered', JSON.parse(localStorage.getItem('dsh-plugin-update-hub:prefs') || '{}').pageSize === 10)
 
+// --- the manager's remote namespace mounts after us (fresh app start) ---
+console.log('\n--- late manager ---')
+const lateServices = new Map([
+  ['remote', remoteMock],
+  ['slots', services.get('slots')],
+])
+const lateCtx = {
+  get(name) { return lateServices.get(name) },
+  effect(fn) { const dispose = fn(); if (typeof dispose === 'function') dispose() },
+}
+const savedPluginManager = remoteMock.pluginManager
+delete remoteMock.pluginManager
+services.delete('remote.pluginManager')
+vm.runInThisContext(source + '\n//# late', { filename: 'client-late.js' })
+const lateClient = captured
+const lateModule = lateClient.factory((name) => { if (name === 'react') return React; throw new Error('unexpected require ' + name) })
+lateModule.apply(lateCtx)
+let lateTree = null
+for (let tick = 0; tick < 25; tick += 1) {
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  const lateSlot = registrations[registrations.length - 1]
+  if (!lateSlot) continue
+  hookIndex = 0
+  pendingEffects = []
+  rerenderNeeded = false
+  const element = lateSlot.render()
+  lateTree = typeof element.type === 'function' ? element.type(element.props) : element
+  if (textOf(lateTree).includes('dsh-meme')) break
+  if (tick === 3) remoteMock.pluginManager = savedPluginManager
+}
+const lateText = textOf(lateTree || { type: 'div', props: {}, children: [] })
+must('late manager does not latch an error', !lateText.includes('插件管理器尚未加载'))
+must('late manager still lists rows', lateText.includes('dsh-meme'))
+
 if (failures.length > 0) {
   console.error('\nFAILED (' + failures.length + '):')
   for (const line of failures) console.error('  ✗ ' + line)
