@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const name = 'dsh-plugin-update-hub'
-export const inject = ['webServer']
+export const inject = ['webServer', 'connection']
 
 const ROUTE = '/dsh-plugin-update-hub-api'
 const SAFE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/i
@@ -156,6 +156,26 @@ function collect(profileDir, requested) {
   return { installedAt, info }
 }
 
+/**
+ * Host admission fence for the local route. Delegates to the runtime's own
+ * `connection.requestRejection()` so the route inherits the browser auth the
+ * app already enforces; when that service is missing or throws, the request is
+ * rejected instead of falling through to a Host/Origin/loopback guess.
+ * @returns 0 when the request may proceed, otherwise the status code to send.
+ */
+function refusalOf(ctx, req) {
+  try {
+    const connection = ctx.get('connection')
+    if (connection === undefined || connection === null) return 403
+    if (typeof connection.requestRejection !== 'function') return 403
+    const rejection = connection.requestRejection(req)
+    if (rejection === undefined || rejection === null || rejection === false) return 0
+    return typeof rejection === 'number' ? rejection : 403
+  } catch (error) {
+    return 403
+  }
+}
+
 function respond(res, status, payload) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -171,6 +191,11 @@ export function apply(ctx) {
     kind: 'exact',
     path: ROUTE,
     async handler(req, res) {
+      const refusal = refusalOf(ctx, req)
+      if (refusal !== 0) {
+        respond(res, refusal, { error: 'unauthorized' })
+        return
+      }
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         respond(res, 405, { error: 'method-not-allowed' })
         return

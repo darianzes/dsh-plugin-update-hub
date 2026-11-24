@@ -70,7 +70,7 @@ dsh plugin --profile web add dsh-plugin-update-hub@latest
 
 ## 实现
 
-- `index.js`(Host 半边,`export const inject = ['webServer']`):注册 exact 路由 `/dsh-plugin-update-hub-api`,按包名返回 profile `node_modules` 的安装时间(pnpm symlink 自身的 mtime)以及包 `package.json` 的 `description` / `version`。profile 目录依次从 `DSH_PROFILE_DIR`、`DSH_HOME/profiles/$DSH_PROFILE`、宿主进程 argv、模块路径上溯、`~/.dsh/profiles/*` 里找,用 `node_modules` + `cordis.patch.yml` 判定,排除只读的 app 安装目录。不依赖任何 `@deepseek-ai` 包。
+- `index.js`(Host 半边,`export const inject = ['webServer']`):注册 exact 路由 `/dsh-plugin-update-hub-api`,按包名返回 profile `node_modules` 的安装时间(pnpm symlink 自身的 mtime)以及包 `package.json` 的 `description` / `version`。profile 目录依次从 `DSH_PROFILE_DIR`、`DSH_HOME/profiles/$DSH_PROFILE`、宿主进程 argv、模块路径上溯、`~/.dsh/profiles/*` 里找,用 `node_modules` + `cordis.patch.yml` 判定,排除只读的 app 安装目录。路由的准入交给运行时自己的 `connection.requestRejection(req)`,该栅栏缺失或抛错时一律拒绝(fail closed),不靠 Host / Origin 猜。除运行时注入的 `webServer` / `connection` 外不依赖任何 `@deepseek-ai` 包。
 - `client.js`(Client 半边):把 `plugins.tab` 注册成 `{ id: 'updates', order: 10, label: '插件更新' }`;数据走 `ctx.get('remote.pluginManager')` 的 `listBundles` / `listVersions` / `updateBundle` / `cancelInstall`,进度走 `ctx.get('remote').$on('plugin-manager/update-state' | 'plugin-manager/changed')`。Remote 调用返回 `{ ok, value | error }` 信封,统一拆。
 - 只用 `react` 和 `--dsw-alias-*` 主题 token,不引入 Harness 客户端包,不写 JSX。
 
