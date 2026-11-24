@@ -10,6 +10,8 @@
 
 Plugins installed from the market never told you when a newer version shipped — the stock plugin page has no version column at all, so the only upgrade path was uninstall and reinstall. This plugin adds a **Plugin updates** tab next to *Installed* and *Discover*: every installed plugin with its current version, install date, how many releases behind it is, and a version picker.
 
+Also indexed by [dshfind](https://dshfind.com/en/plugins/darianzes/dsh-plugin-update-hub), a community directory that syncs GitHub `dsh-plugin` repositories daily.
+
 ## Install
 
 ### CLI (recommended)

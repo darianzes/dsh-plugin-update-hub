@@ -10,6 +10,8 @@
 
 从插件市场装的插件落后了,原来的插件页不会提示,也没有版本列,只能卸载重装。这个插件在侧边栏的**插件**页加一个「插件更新」tab:一次列出所有已装插件的当前版本、安装时间、落后几个版本,并支持选版本升级。
 
+也被 [dshfind](https://dshfind.com/zh/plugins/darianzes/dsh-plugin-update-hub) 收录,该社区目录按 GitHub 的 `dsh-plugin` 主题每日同步。
+
 ## 安装
 
 ### 命令行(推荐)
